@@ -12,7 +12,8 @@ SRC_URI[md5sum] = "58671adf559dd18620f11caf4ccf83dd"
 SRC_URI[sha256sum] = "09a70a423d10a6bf71f8675b7430c29a56f41f93493331c9ae515011713c229b"
 
 
-DEPENDS = "zlib curl openssl xz"
+DEPENDS = "zlib curl openssl"
+RDEPENDS_${PN} = "xz tar"
 
 PACKAGECONFIG ??= "bzip2"
 PACKAGECONFIG[bzip2] = "--enable-bzip2,--disable-bzip2,bzip2"
