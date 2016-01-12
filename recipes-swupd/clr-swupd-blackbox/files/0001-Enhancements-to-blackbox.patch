@@ -1,0 +1,182 @@
+From e6fad2692714a72579bcf84aa4582c6b0f344c69 Mon Sep 17 00:00:00 2001
+From: Igor Stoppa <igor.stoppa@intel.com>
+Date: Tue, 5 Jan 2016 20:22:34 +0200
+Subject: [PATCH] Enhancements to blackbox
+
+* handle case where there is no previous version, AKA "version 0";
+* make manifests deltas optional;
+* make the tool return more meaningful errors and info.
+
+Signed-off-by: Igor Stoppa <igor.stoppa@intel.com>
+---
+ swupd_bb.py | 60 +++++++++++++++++++++++++++++++++++++++---------------------
+ test.sh     |  2 ++
+ 2 files changed, 41 insertions(+), 21 deletions(-)
+ create mode 100755 test.sh
+
+diff --git a/swupd_bb.py b/swupd_bb.py
+index d1ff2f3..3e3f24b 100644
+--- a/swupd_bb.py
++++ b/swupd_bb.py
+@@ -14,6 +14,7 @@ import subprocess
+ import sys
+ import tempfile
+ import update_hash
++from inspect import currentframe
+ 
+ from http.client import BadStatusLine
+ from http.client import HTTPConnection
+@@ -265,13 +266,18 @@ def get_file(name, file_type, save_file=True):
+     """Download and parse file from web server into usable form"""
+     global CONNECTION
+     url = make_url(name, file_type)
++    print("get_file {}  ".format(url), end="")
+     try:
+         raw_file = urlopen(url).read()
+     except:
+         CONNECTION = HTTPConnection(URL)
++        print("MISSING.");
+         return None
++    print("FOUND ", end="");
+     if not save_file:
++        print("but NOT saved.")
+         return True
++    print(" and saved.")
+     parsed_file = parse_file(raw_file, name, file_type)
+     parsed_file["url"] = url
+     return parsed_file
+@@ -323,14 +329,13 @@ def get_mom_deltas(mom):
+     global FAIL
+     delta_count = 0
+     ver_num = mom["previous"]
++    if int(ver_num) is 0:
++        return
+     while delta_count < PREV_CHECK:
+         mdelta = get_file(mom["version"] + ":" + ver_num, "mom delta")
+         if not mdelta:
+-            # INVARIANT
+-            # MoM deltas must exist for previous versions
+-            FAIL = True
+-            print("Missing MoM delta from version {0}".format(ver_num))
+-            break
++            delta_count += 1
++            continue
+         hlist_append(mom, "mdeltas", mdelta)
+         dmom = get_file(mdelta["id"], "mom")
+         if not dmom:
+@@ -440,11 +445,15 @@ def get_bundle_files(bundle, mom):
+             FAIL = True
+             print("Missing file {}".format(item["name"]))
+             continue
++        print("item = {0}".format(item))
+         file["id"] = item["name"] + item["hash"]
+         file["name"] = item["name"]
+         hlist_append(bundle, "files", file)
+-        dfile_content = mom["pfull bundle"]["name2content"]\
+-            .get(item["name"])
++        if mom["pfull bundle"] is None:
++            dfile_content = None
++        else:
++            dfile_content = mom["pfull bundle"]["name2content"].get(item["name"])
++
+         # There may not be a delta for any particular file, due to it being
+         # new or the delta was bigger than the file
+         if dfile_content:
+@@ -469,21 +478,24 @@ def get_bundle_files(bundle, mom):
+ 
+ def get_repo_contents(mom):
+     """Get all files related to mom
+-
+     Loop through bundle list and grab all related content"""
++    print("Getting repo contents.")
++    print("Getting MoM deltas.")
+     get_mom_deltas(mom)
++    print("Getting MoM bundles.")
+     get_mom_bundles(mom)
++    print("Getting full bundle.")
+     full_bundle = get_file(mom["version"], "full bundle")
+     if not full_bundle:
+         # INVARIANT
+         # All versions must have full bundle
+-        raise Exception("Missing full bundle for {}".format(mom["version"]))
++        raise Exception("Missing full bundle for [current version] {}".format(mom["version"]))
+     mom["full bundle"] = full_bundle
++    print("Getting previous full bundle.")
+     pfull_bundle = get_file(mom["previous"], "full bundle")
+-    if not pfull_bundle:
+-        # INVARIANT
+-        # All versions must have full bundle
+-        raise Exception("Missing full bundle for {}".format(mom["previous"]))
++    if int(mom["previous"]) is not 0 and pfull_bundle is None:
++        # Except from version 0, all versions must have full bundle
++        raise Exception("Missing full bundle for [previous version] {}".format(mom["previous"]))
+     mom["pfull bundle"] = pfull_bundle
+     for bundleid in mom["bundles"]:
+         bundle = mom["bundles" + bundleid]
+@@ -623,6 +635,8 @@ def verify_file_hashes(mom):
+ def verify_mom_deltas(mom):
+     """Validate mom deltas match current mom"""
+     global FAIL
++    if int(mom["previous"]) is 0 or "mdeltas" not in mom.keys():
++        return
+     for mdeltaid in mom["mdeltas"]:
+         mdelta = mom["mdeltas" + mdeltaid]
+         if subprocess.call(["swupd_bspatch", mdelta["mom"]["data"],
+@@ -815,12 +829,15 @@ def verify_pack_files(mom, bundle_name, pack_from):
+ def verify_packs(mom):
+     """Validate packs match expected bundles"""
+     global FAIL
++    if int(mom["previous"]) is 0:
++      return
+     for bundleid in mom["bundles"]:
+         bundle = mom["bundles" + bundleid]
+         if not bundle.get("packs"):
+             # INVARIANT
+             # Pack must exist for bundle if bundle is changed
+             FAIL = True
++            print("{0}".format(mom["previous"]))
+             print("ERROR: Missing pack for bundle {}".format(bundle["name"]))
+             continue
+         for packid in bundle["packs"]:
+@@ -1013,7 +1030,7 @@ def main():
+             print("Trace mode finished successfully")
+             sys.exit(0)
+         except Exception as excep:
+-            print("ERROR: {}".format(excep))
++            print("ERROR [line={0}] {1}".format(currentframe().f_back.f_lineno, excep))
+             sys.exit(-1)
+     pickle_file = "pickle-{}".format(args.version)
+     if os.path.exists(pickle_file):
+@@ -1025,13 +1042,14 @@ def main():
+         if not mom:
+             print("ERROR: MoM for version {} not found".format(args.version))
+             sys.exit(-1)
+-        try:
+-            get_repo_contents(mom)
+-        except Exception as excep:
+-            print("ERROR: {}".format(excep))
+-            sys.exit(-1)
+-        if FAIL:
+-            sys.exit(-1)
++#        try:
++        get_repo_contents(mom)
++#        except Exception as excep:
++#            print("ERROR [line={0}] {1}".format(currentframe().f_back.f_lineno, excep))
++#            sys.exit(-1)
++#        if FAIL:
++#            print("ERROR: FAILed")
++#            sys.exit(-1)
+         with open(pickle_file, "wb") as pfile:
+             pickle.dump(mom, pfile)
+ 
+diff --git a/test.sh b/test.sh
+new file mode 100755
+index 0000000..1af5ef4
+--- /dev/null
++++ b/test.sh
+@@ -0,0 +1,2 @@
++#!/bin/bash
++python3 ../swupd_bb.py --url localhost $1 $2
+-- 
+2.4.3
+
