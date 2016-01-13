@@ -14,7 +14,7 @@ SRC_URI[sha256sum] = "b4901db76a47fd3815c94bc25a885252c639273f31a9e000793c2d19f8
 
 
 DEPENDS += "swupd-client"
-RDEPENDS_${PN} += "python3-core curl bash"
+RDEPENDS_${PN} += "python3-core python3-modules python3-misc curl bash"
 CFLAGS="-lpython${PYTHON_BASEVERSION}${PYTHON_ABI}"
 
 inherit distutils3 systemd
