@@ -1,12 +1,10 @@
-LICENSE = "CLOSED"
-LIC_FILES_CHKSUM = ""
+LICENSE = "LGPLv2.1"
+LIC_FILES_CHKSUM = "files://LICENSE;md5=4fbd65380cdd255951079008b364516c"
 
 SUMMARY = "Clear systemd config files for swupd"
 
-PV="98"
-
 SRC_URI = " \
-  http://kojiclear.jf.intel.com/cgit/projects/clr-systemd-config/snapshot/clr-systemd-config-${PV}.tar.gz \
+  file://clr-systemd-config-${PV}.tar.gz \
   file://0001-change-clear-path-to-Ostro-path.patch \
 "
 
@@ -37,7 +35,7 @@ do_install_append () {
   rm ${D}${datadir}/defaults/etc/shadow
   rm ${D}${datadir}/defaults/etc/group
   rm ${D}${datadir}/defaults/etc/gshadow
-  rm ${D}/lib/udev/rules.d/80-kvm.rules
+  rm ${D}/${base_prefix}/lib/udev/rules.d/80-kvm.rules
 
   rmdir ${D}${libdir}/sysusers.d
   rmdir ${D}${libdir}/modules-load.d
@@ -50,8 +48,8 @@ do_install_append () {
   rmdir ${D}${datadir}
   rmdir ${D}${libdir}
   rmdir ${D}/usr
-  rmdir ${D}/lib/udev/rules.d
-  rmdir ${D}/lib/udev
+  rmdir ${D}/${base_prefix}/lib/udev/rules.d
+  rmdir ${D}/${base_prefix}/lib/udev
 }
 
 FILES_${PN} += " \

@@ -3,6 +3,8 @@ From: Jaska Uimonen <jaska.uimonen@helsinki.fi>
 Date: Tue, 19 Jan 2016 13:27:19 +0200
 Subject: [PATCH] change clear path to Ostro path
 
+Upstream-Status: Inappropriate
+
 ---
  system/catalog-trigger.service         | 2 +-
  system/ldconfig-trigger.service        | 2 +-
