@@ -3,6 +3,8 @@ From: Amarnath Valluri <amarnath.valluri@intel.com>
 Date: Wed, 13 Jan 2016 15:46:19 +0200
 Subject: [PATCH] Right usage of AC_ARG_ENABLE on bzip2
 
+Upstream-Status: Pending[Not submitted]
+
 Signed-off-by: Amarnath Valluri <amarnath.valluri@intel.com>
 ---
  configure.ac | 12 +++++++-----
